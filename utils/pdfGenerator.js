@@ -1,53 +1,63 @@
 const PDFDocument = require('pdfkit');
+const path = require('path');
+const fs = require('fs');
 
-// --- סוכן 3: יצירת דו"ח PDF (מעוצב) ---
-async function generatePDFReport(reportTitle, matchedData, isSearchQuery) {
-  return new Promise((resolve, reject) => {
-    // הגדרות PDF ל-A4
-    const doc = new PDFDocument({ size: 'A4', autoFirstPage: false, bufferPages: true });
-    let buffers = [];
-    
-    doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', () => resolve(Buffer.concat(buffers)));
+async function generatePDFReport(title, data, isSearchQuery) {
+    return new Promise((resolve, reject) => {
+        const doc = new PDFDocument({ size: 'A4', layout: 'portrait' });
+        const buffers = [];
 
-    doc.addPage();
-    
-    // כותרת ראשית (הדגשה על יישור לימין לעברית)
-    doc.font('Helvetica-Bold').fontSize(18).fillColor('#003366')
-       .text(reportTitle, { align: 'right' }); 
-    
-    doc.fontSize(10).fillColor('#444444')
-       .text(דו"ח נוצר על ידי AI Broker | ${new Date().toLocaleDateString('he-IL')}, { align: 'right' });
-    doc.moveDown(1.5);
+        doc.on('data', buffers.push.bind(buffers));
+        doc.on('end', () => {
+            const pdfBuffer = Buffer.concat(buffers);
+            resolve(pdfBuffer);
+        });
+        doc.on('error', reject);
 
-    matchedData.forEach((match, index) => {
-      // בקרת עמוד
-      if (index > 0 && doc.y > 680) {
-          doc.addPage();
-          doc.moveDown();
-      }
-      
-      const listing = match; 
-      
-      doc.fillColor('#003366').fontSize(14).font('Helvetica-Bold')
-         .text(${index + 1}. ${listing.title || listing.id}, { align: 'right' });
+        // --- הגדרות עיצוב ופונטים (מותאם לעברית) ---
+        // הערה: נניח שאתה משתמש בפונט תומך עברית בפריסה, למשל 'arial.ttf'
+        const HebrewFont = path.join(process.cwd(), 'assets', 'fonts', 'Arial.ttf'); 
+        if (fs.existsSync(HebrewFont)) {
+            doc.font(HebrewFont);
+        } else {
+            // שימוש בפונט ברירת מחדל אם אין פונט עברי מותקן
+            doc.font('Helvetica');
+        }
+        
+        doc.text(title, { align: 'center', fontSize: 18 });
+        doc.moveDown();
 
-      // ציון התאמה (מוצג משמאל)
-      doc.fillColor('#CC0000').fontSize(16).font('Helvetica-Bold')
-         .text(התאמה: ${Math.round(match.score * 100)}%, 450, doc.y - 18, { align: 'left' }); 
-      
-      // ... (לוגיקת עיצוב טבלה RLT נוספת)
-         
-      // קו הפרדה
-      doc.moveDown(1);
-      doc.strokeColor('#CCCCCC').lineWidth(1)
-         .moveTo(30, doc.y).lineTo(565, doc.y).stroke();
-      doc.moveDown(1);
+        // --- לוגיקת הצגת נתונים ---
+        data.forEach((item, index) => {
+            doc.fontSize(14).text(${index + 1}. ${isSearchQuery ? item.city_he : item.buyer_email}, { underline: true });
+            doc.fontSize(10);
+            
+            // תצוגת דירה לקונה (SCENARIO 1)
+            if (isSearchQuery) {
+                doc.text(מחיר: ${item.price_nis.toLocaleString()} ₪);
+                doc.text(חדרים: ${item.rooms_num});
+                doc.text(תיאור: ${item.description_raw.substring(0, 150)}...);
+                // פרטי קשר של המוכר - קריטי לזרימה העסקית!
+                doc.text(פרטי קשר: ${item.owner_email});
+                if (item.imageUrls && item.imageUrls.length > 0) {
+                    doc.text(צפייה בתמונות: ${item.imageUrls[0]}); 
+                }
+            } 
+            // תצוגת הכרטיסייה העצמית למוכר (SCENARIO 2 - Feedback)
+            else { 
+                doc.text(מחיר: ${item.price_nis ? item.price_nis.toLocaleString() + ' ₪' : 'לא צוין'});
+                doc.text(חדרים: ${item.rooms_num || 'לא צוין'});
+                doc.text(תיאור: ${item.description_raw.substring(0, 150)}...);
+                // פרטי קשר של המוכר
+                doc.text(פרטי קשר: ${item.owner_email}); 
+            }
+            doc.moveDown();
+        });
+
+        doc.end();
     });
-
-    doc.end();
-  });
 }
 
-// הייצוא לקובץ utils/pdfGenerator.js
-module.exports = { generatePDFReport };
+module.exports = {
+    generatePDFReport
+};
