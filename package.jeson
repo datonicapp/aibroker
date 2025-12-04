@@ -1,0 +1,19 @@
+{
+  "name": "aibroker-api",
+  "version": "1.0.0",
+  "description": "AI Broker API for email processing",
+  "scripts": {
+    "start": "next start",
+    "build": "next build"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "next": "^13.4.0",
+    "firebase-admin": "^11.9.0",
+    "@google/generative-ai": "^0.1.0",
+    "@sendgrid/mail": "^7.7.0",
+    "pdf-generator": "^0.0.1"
+  }
+}
